@@ -8,6 +8,7 @@ import memory
 
 load_dotenv()
 client = genai.Client()
+MODEL = "gemini-3.5-flash-lite"
 
 def make_chat():
     today = date.today().isoformat()
@@ -21,7 +22,7 @@ Rules:
 - Keep replies to 1-3 short sentences, because they will be spoken aloud."""
 
     return client.chats.create(
-        model="gemini-3.8-flash",
+        model=MODEL,
         config=types.GenerateContentConfig(
             system_instruction=system,
             tools=[memory.add_task, memory.load_tasks, memory.mark_done,
@@ -38,17 +39,19 @@ def send(chat, msg, tries=3):
         except errors.APIError as e:
             if e.code in (429, 503):            # rate limited or overloaded
                 wait = 2 ** attempt * 2         # wait 2s, then 4s, then 8s
-                print(f"(Gemini is busy, retrying in {wait}s...)")
+                print(f"(Gemini error {e.code}, retrying in {wait}s...)")
                 time.sleep(wait)
             else:
                 raise                           # real bugs should still show up
     return "Sorry, I can't reach my brain right now. Please try again in a minute."
+
 
 def start_session(chat):
     """Check missed tasks in code, then have the AI greet the user."""
     missed = memory.get_missed(date.today().isoformat())
     return send(chat, f"[Session started. Missed tasks: {missed}] "
                       "Greet the user. If there are missed tasks, name them and offer to reschedule.")
+
 
 
 if __name__ == "__main__":
