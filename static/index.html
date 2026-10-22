@@ -12,6 +12,7 @@
 
   <input id="msgInput" type="text" placeholder="Type a message..." disabled>
   <button id="sendBtn" disabled>Send</button>
+  <button id="micBtn" disabled>🎤 Speak</button>
 
   <script>
     const log = document.getElementById("log");
@@ -22,6 +23,13 @@
       const p = document.createElement("p");
       p.textContent = `${who}: ${text}`;   // textContent, not innerHTML (safer)
       log.appendChild(p);
+    }
+
+    function speak(text) {
+      speechSynthesis.cancel();                       // stop any earlier speech
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "en-US";
+      speechSynthesis.speak(utterance);
     }
 
     // One helper for all POST requests, so error handling lives in one place
@@ -38,14 +46,19 @@
     function setBusy(busy) {
       input.disabled = busy;
       sendBtn.disabled = busy;
+      micBtn.disabled = busy;
     }
 
     document.getElementById("startBtn").addEventListener("click", async () => {
       addMessage("System", "Starting...");
       setBusy(true);
       try {
-        addMessage("StudyBuddy", await post("/start"));
-      } catch (err) {
+        const reply = await post("/start");
+        addMessage("StudyBuddy", reply);
+        speak(reply);
+
+      } 
+        catch (err) {
         addMessage("System", "Could not start: " + err.message);
       }
       setBusy(false);
@@ -59,8 +72,11 @@
       input.value = "";
       setBusy(true);
       try {
-        addMessage("StudyBuddy", await post("/chat", { message: text }));
-      } catch (err) {
+        const reply = await post("/chat", { message: text });
+        addMessage("StudyBuddy", reply);
+        speak(reply);
+      } 
+      catch (err) {
         addMessage("System", "Error: " + err.message);
       }
       setBusy(false);
@@ -71,6 +87,37 @@
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") sendMessage();
     });
+
+        const micBtn = document.getElementById("micBtn");
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-IN";              // tuned for Indian English accents
+      recognition.interimResults = false;      // only give us the final result
+
+      micBtn.addEventListener("click", () => {
+        speechSynthesis.cancel();              // stop speaking so it doesn't hear itself
+        micBtn.textContent = "Listening...";
+        recognition.start();
+      });
+
+      recognition.addEventListener("result", (e) => {
+        input.value = e.results[0][0].transcript;   // put what you said in the box
+        input.focus();                              // so you can edit, then press Enter                            // reuse the same send logic
+      });
+
+      recognition.addEventListener("end", () => {
+        micBtn.textContent = "🎤 Speak";
+      });
+
+      recognition.addEventListener("error", (e) => {
+        addMessage("System", "Mic error: " + e.error);
+      });
+    } else {
+      micBtn.style.display = "none";
+      addMessage("System", "Voice input isn't supported here. Please use Chrome or Edge.");
+    }
   </script>
 </body>
 </html>
