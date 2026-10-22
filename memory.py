@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 import json
 import os
 
@@ -23,6 +24,27 @@ def add_task(title: str, date: str) -> dict:
     tasks.append(task)
     save_tasks(tasks)
     return task
+
+
+def add_plan(exam_title: str, exam_date: str, titles: list[str], dates: list[str]) -> dict:
+    """Save a revision plan for an exam. titles[i] is studied on dates[i].
+    All dates are YYYY-MM-DD and must be before exam_date.
+    The exam itself and a full-revision session the day before are added automatically."""
+    if len(titles) != len(dates):
+        return {"error": "titles and dates must have the same length"}
+    try:
+        exam_day = date.fromisoformat(exam_date)
+    except ValueError:
+        return {"error": "exam_date must be YYYY-MM-DD"}
+    late = [t for t, d in zip(titles, dates) if d >= exam_date]
+    if late:
+        return {"error": f"These topics are on or after the exam: {late}. Schedule them earlier."}
+    day_before = (exam_day - timedelta(days=1)).isoformat()
+    added = [add_task(t, d) for t, d in zip(titles, dates)]
+    added.append(add_task(f"Full revision: {exam_title}", day_before))
+    added.append(add_task(exam_title, exam_date))
+    return {"added": added}
+
 
 def mark_done(task_id: int) -> dict:
     """Mark a task as completed by its id."""

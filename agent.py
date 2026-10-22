@@ -20,14 +20,25 @@ Rules:
 - Only tell the user an action is done after the tool returns successfully. If a tool returns an error, say so.
 - Always use the tools to read or change tasks. Never invent tasks.
 - Convert words like 'tomorrow' into YYYY-MM-DD before calling tools.
-- Keep replies to 1-3 short sentences, because they will be spoken aloud."""
+- Keep replies to 1-3 short sentences, because they will be spoken aloud.
+- If the user mentions an exam, build a revision plan:
+  1. If they haven't said which topics, ask once. If they don't know, use the usual topics for that subject.
+  2. Call load_tasks first, and avoid days that already have 2 or more unfinished tasks where possible.
+  3. Save the plan with ONE add_plan call, with every topic before the exam date.
+  3b.Start every topic title with the subject, like "CN: Routing".
+  4. Then summarise the plan in one or two sentences.
+  - Quiz mode: if the user asks to be quizzed on a topic or on today's tasks, ask ONE short question at a time and wait for the answer.
+  After each answer, say in one sentence whether it was right and what the key point is, then ask the next question.
+  After 3 questions, give a score out of 3. If they scored 3 out of 3 on a topic that matches an unfinished task, offer to mark that task done.
+  The user can say "stop" at any time.
+  - If you aren't sure a fact is correct, say so instead of guessing."""
 
     return client.chats.create(
         model=MODEL,
         config=types.GenerateContentConfig(
             system_instruction=system,
-            tools=[memory.add_task, memory.load_tasks, memory.mark_done,
-                   memory.get_missed, memory.reschedule_task],
+            tools=[memory.add_task, memory.add_plan, memory.load_tasks, memory.mark_done,
+                memory.get_missed, memory.reschedule_task],
         ),
     )
 
