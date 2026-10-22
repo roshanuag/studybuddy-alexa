@@ -10,8 +10,13 @@
   <button id="startBtn">Start session</button>
   <div id="log"></div>
 
+  <input id="msgInput" type="text" placeholder="Type a message..." disabled>
+  <button id="sendBtn" disabled>Send</button>
+
   <script>
     const log = document.getElementById("log");
+    const input = document.getElementById("msgInput");
+    const sendBtn = document.getElementById("sendBtn");
 
     function addMessage(who, text) {
       const p = document.createElement("p");
@@ -19,11 +24,52 @@
       log.appendChild(p);
     }
 
+    // One helper for all POST requests, so error handling lives in one place
+    async function post(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {})
+      });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      return (await res.json()).reply;
+    }
+
+    function setBusy(busy) {
+      input.disabled = busy;
+      sendBtn.disabled = busy;
+    }
+
     document.getElementById("startBtn").addEventListener("click", async () => {
       addMessage("System", "Starting...");
-      const res = await fetch("/start", { method: "POST" });
-      const data = await res.json();
-      addMessage("StudyBuddy", data.reply);
+      setBusy(true);
+      try {
+        addMessage("StudyBuddy", await post("/start"));
+      } catch (err) {
+        addMessage("System", "Could not start: " + err.message);
+      }
+      setBusy(false);
+      input.focus();
+    });
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;                    // ignore empty messages
+      addMessage("You", text);
+      input.value = "";
+      setBusy(true);
+      try {
+        addMessage("StudyBuddy", await post("/chat", { message: text }));
+      } catch (err) {
+        addMessage("System", "Error: " + err.message);
+      }
+      setBusy(false);
+      input.focus();
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
     });
   </script>
 </body>
