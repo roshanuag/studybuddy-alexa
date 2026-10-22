@@ -4,120 +4,420 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>StudyBuddy</title>
-</head>
-<body>
-  <h1>StudyBuddy</h1>
-  <button id="startBtn">Start session</button>
-  <div id="log"></div>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #04060a; --text: #e9eef5; --muted: #8a96a6; --line: rgba(255,255,255,0.12);
+      --teal: #5fe0c6; --violet: #8b7bff; --missed: #ff8f7d; --done: #7fd6a8;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; margin: 0; }
+    body { background: var(--bg); color: var(--text); font-family: "Sora", system-ui, sans-serif; overflow: hidden; }
 
-  <input id="msgInput" type="text" placeholder="Type a message..." disabled>
-  <button id="sendBtn" disabled>Send</button>
-  <button id="micBtn" disabled>🎤 Speak</button>
+    .halo { position: fixed; left: 50%; top: 38vh; width: 64vmin; height: 64vmin;
+            transform: translate(-50%, -50%); border-radius: 50%; z-index: 0; pointer-events: none;
+            background: radial-gradient(circle, rgba(95,224,198,0.12), rgba(139,123,255,0.07) 45%, transparent 70%);
+            filter: blur(24px); opacity: 0.5; transition: opacity 0.6s ease; }
+    body[data-mode="speaking"] .halo, body[data-mode="listening"] .halo { opacity: 1; }
+    #orb { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+
+    .top { position: fixed; top: 0; left: 0; right: 0; z-index: 2; display: flex;
+           justify-content: space-between; align-items: center; padding: 22px 32px; }
+    .wordmark { font-weight: 600; font-size: 1.05rem; }
+    .top-actions { display: flex; gap: 10px; align-items: center; }
+    .pill { font: inherit; font-size: 0.9rem; padding: 10px 18px; border-radius: 999px; cursor: pointer;
+            border: 1px solid var(--line); background: #fff; color: #05070a; transition: transform 0.15s ease; }
+    .pill:hover:not(:disabled) { transform: translateY(-1px); }
+    .pill.ghost { background: transparent; color: var(--text); }
+    .link { font: inherit; font-size: 0.9rem; background: none; border: none; color: var(--muted);
+            cursor: pointer; padding: 8px; }
+    .link:hover { color: var(--text); }
+
+    .stage { position: fixed; left: 50%; top: 64vh; transform: translateX(-50%);
+             width: min(760px, 90vw); text-align: center; z-index: 2; }
+    .you-line { color: var(--muted); font-size: 0.95rem; margin: 0 0 10px; min-height: 1.4em; }
+    .caption { font-size: clamp(1.2rem, 2.3vw, 1.8rem); font-weight: 300; line-height: 1.4;
+               margin: 0; min-height: 2.8em; }
+    #unspoken { color: rgba(233,238,245,0.35); }
+    .caption.error, .caption.error #unspoken { color: var(--missed); }
+    .status { color: var(--muted); font-size: 0.85rem; margin: 14px 0 0; }
+
+    .composer { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 2;
+                width: min(640px, 92vw); display: flex; gap: 8px; align-items: center; padding: 8px;
+                border: 1px solid var(--line); border-radius: 999px;
+                background: rgba(10,14,20,0.6); backdrop-filter: blur(12px); }
+    .composer:focus-within { border-color: rgba(255,255,255,0.32); }
+    .composer input { flex: 1; min-width: 0; background: transparent; border: none; color: var(--text);
+                      font: inherit; font-size: 1rem; padding: 8px 14px; }
+    .composer input:focus { outline: none; }
+    .mic { width: 46px; height: 46px; border-radius: 50%; border: none; flex-shrink: 0; cursor: pointer;
+           background: #fff; color: #05070a; display: grid; place-items: center; transition: background 0.2s; }
+    .mic.listening { background: var(--teal); }
+
+    .plan { position: fixed; top: 0; right: 0; height: 100%; width: min(360px, 90vw); z-index: 3;
+            padding: 24px 26px; overflow-y: auto; border-left: 1px solid var(--line);
+            background: rgba(8,11,16,0.88); backdrop-filter: blur(16px);
+            transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .plan.open { transform: none; }
+    .plan-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .plan-head h2 { font-size: 1.1rem; font-weight: 600; margin: 0; }
+    .plan-empty { color: var(--muted); font-size: 0.95rem; }
+    .group { margin-bottom: 22px; }
+    .group h3 { font-size: 0.85rem; font-weight: 600; color: var(--muted); margin: 0 0 4px; }
+    .group.missed h3 { color: var(--missed); }
+    .task { display: flex; gap: 12px; align-items: flex-start; padding: 9px 6px;
+            border-bottom: 1px solid var(--line); border-radius: 6px; }
+    .mark { width: 16px; height: 16px; margin-top: 4px; flex-shrink: 0; border-radius: 50%;
+            border: 2px solid var(--muted); }
+    .task.missed .mark { border-color: var(--missed); }
+    .task.done .mark { background: var(--done); border-color: var(--done); }
+    .task.done .title { text-decoration: line-through; color: var(--muted); }
+    .when { display: block; font-size: 0.8rem; color: var(--muted); }
+    .task.missed .when { color: var(--missed); }
+    .task.changed { animation: highlight 2.6s ease-out; }
+    @keyframes highlight { from { background: rgba(255,226,140,0.22); } to { background: transparent; } }
+
+    button:disabled, input:disabled { opacity: 0.45; cursor: not-allowed; }
+    :focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) {
+      .plan { transition: none; }
+      .task.changed { animation: none; background: rgba(255,226,140,0.18); }
+    }
+  </style>
+</head>
+<body data-mode="idle">
+  <div class="halo"></div>
+  <canvas id="orb" aria-hidden="true"></canvas>
+
+  <header class="top">
+    <span class="wordmark">StudyBuddy</span>
+    <div class="top-actions">
+      <button id="planBtn" class="link">Your plan</button>
+      <button id="startBtn" class="pill">Start session</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <p id="youLine" class="you-line"></p>
+    <p id="caption" class="caption" aria-live="polite"><span id="spoken"></span><span id="unspoken"></span></p>
+    <p id="status" class="status">Press Start session to begin.</p>
+  </main>
+
+  <div class="composer">
+    <input id="msgInput" type="text" placeholder="Type a task, or use the mic" aria-label="Message" disabled>
+    <button id="sendBtn" class="pill ghost" disabled>Send</button>
+    <button id="micBtn" class="mic" aria-label="Speak" disabled>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="21"/>
+      </svg>
+    </button>
+  </div>
+
+  <aside id="plan" class="plan" aria-label="Your plan">
+    <div class="plan-head">
+      <h2>Your plan</h2>
+      <button id="closePlan" class="link">Close</button>
+    </div>
+    <div id="agenda"></div>
+  </aside>
 
   <script>
-    const log = document.getElementById("log");
+    /* ---------- The orb ---------- */
+    const canvas = document.getElementById("orb");
+    const ctx = canvas.getContext("2d");
+    const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function resize() { canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr; }
+    addEventListener("resize", resize);
+    resize();
+
+    // Spread points evenly over a sphere (Fibonacci sphere)
+    const N = 3000, points = [];
+    const golden = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = golden * i;
+      points.push([Math.cos(th) * r, y, Math.sin(th) * r]);
+    }
+
+    // Each mode has its own wobble, spin speed and colour; the orb eases between them
+    const presets = {
+      idle:      { amp: 0.04, spin: 0.15, hue: 195 },
+      listening: { amp: 0.09, spin: 0.25, hue: 170 },
+      thinking:  { amp: 0.06, spin: 0.70, hue: 230 },
+      speaking:  { amp: 0.09, spin: 0.30, hue: 250 }
+    };
+    const orb = { amp: 0.04, spin: 0.15, hue: 195, kick: 0 };
+    let mode = "idle", rot = 0, t = 0, last = performance.now();
+    function setMode(m) { mode = m; document.body.dataset.mode = m; }
+
+    const BUCKETS = 16;
+    const buckets = Array.from({ length: BUCKETS }, () => []);
+    function frame(now) {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now; t += dt;
+      const p = presets[mode];
+      orb.amp += (p.amp - orb.amp) * 0.06;            // ease toward the target
+      orb.spin += (p.spin - orb.spin) * 0.05;
+      orb.hue += (p.hue - orb.hue) * 0.04;
+      orb.kick *= 0.9;                                 // word pulses fade quickly
+      let amp = orb.amp + orb.kick;
+      if (mode === "speaking") amp += 0.05 * Math.abs(Math.sin(t * 9) * Math.sin(t * 3.7));
+      if (reduceMotion) amp *= 0.4;
+      rot += orb.spin * dt * (reduceMotion ? 0.3 : 1);
+
+      const w = canvas.width, h = canvas.height;
+      const cx = w / 2, cy = h * 0.38, R = Math.min(w, h) * 0.22;
+      const cr = Math.cos(rot), sr = Math.sin(rot), ct = Math.cos(0.35), st = Math.sin(0.35);
+      for (const b of buckets) b.length = 0;
+
+      for (const [x, y, z] of points) {
+        const n = Math.sin(x * 3.1 + t * 1.3) * Math.sin(y * 2.7 + t * 1.1) * Math.sin(z * 3.3 + t * 0.9);
+        const d = 1 + n * amp * 2.5;                   // push each dot in or out
+        const px = x * d, py = y * d, pz = z * d;
+        const rx = px * cr + pz * sr;                  // spin around the vertical axis
+        let rz = -px * sr + pz * cr;
+        const ry = py * ct - rz * st;                  // slight tilt toward the viewer
+        rz = py * st + rz * ct;
+        const persp = 3 / (3 + rz);                    // nearer dots look bigger
+        const front = Math.min(BUCKETS - 1, Math.max(0, Math.floor((1 - (rz + 1.3) / 2.6) * BUCKETS)));
+        buckets[front].push(cx + rx * R * persp, cy + ry * R * persp, persp);
+      }
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalCompositeOperation = "lighter";        // overlapping dots glow
+      for (let i = 0; i < BUCKETS; i++) {
+        const f = i / (BUCKETS - 1);                   // 0 = back, 1 = front
+        ctx.fillStyle = `hsla(${orb.hue + 70 - f * 100}, 85%, ${45 + f * 25}%, ${0.12 + f * 0.75})`;
+        const b = buckets[i];
+        for (let k = 0; k < b.length; k += 3) {
+          const s = b[k + 2] * 1.5 * dpr;
+          ctx.fillRect(b[k] - s / 2, b[k + 1] - s / 2, s, s);
+        }
+      }
+      ctx.globalCompositeOperation = "source-over";
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    /* ---------- Captions, voice and status ---------- */
+    const caption = document.getElementById("caption");
+    const spokenEl = document.getElementById("spoken");
+    const unspokenEl = document.getElementById("unspoken");
+    const youLine = document.getElementById("youLine");
+    const statusEl = document.getElementById("status");
     const input = document.getElementById("msgInput");
     const sendBtn = document.getElementById("sendBtn");
+    const micBtn = document.getElementById("micBtn");
+    const startBtn = document.getElementById("startBtn");
 
-    function addMessage(who, text) {
-      const p = document.createElement("p");
-      p.textContent = `${who}: ${text}`;   // textContent, not innerHTML (safer)
-      log.appendChild(p);
+    function setStatus(text) { statusEl.textContent = text; }
+    function showCaption(text, isError = false) {
+      caption.classList.toggle("error", isError);
+      spokenEl.textContent = "";
+      unspokenEl.textContent = text;                   // textContent, never innerHTML
     }
 
     function speak(text) {
-      speechSynthesis.cancel();                       // stop any earlier speech
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-US";
-      speechSynthesis.speak(utterance);
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.onstart = () => setMode("speaking");
+      u.onboundary = (e) => {                          // fires as each word is spoken
+        let end = text.indexOf(" ", e.charIndex);
+        if (end === -1) end = text.length;
+        spokenEl.textContent = text.slice(0, end);
+        unspokenEl.textContent = text.slice(end);
+        orb.kick = Math.min(orb.kick + 0.06, 0.12);    // pulse the orb on each word
+      };
+      u.onend = () => { spokenEl.textContent = text; unspokenEl.textContent = ""; setMode("idle"); };
+      u.onerror = () => setMode("idle");
+      speechSynthesis.speak(u);
     }
 
-    // One helper for all POST requests, so error handling lives in one place
     async function post(url, body) {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {})
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      let res;
+      try {
+        res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+                                 body: JSON.stringify(body || {}) });
+      } catch {
+        throw new Error("Can't reach the server. Check that app.py is running.");
+      }
+      if (!res.ok) throw new Error(`The server returned error ${res.status}. Check the app.py terminal.`);
       return (await res.json()).reply;
     }
 
     function setBusy(busy) {
-      input.disabled = busy;
-      sendBtn.disabled = busy;
-      micBtn.disabled = busy;
+      input.disabled = busy; sendBtn.disabled = busy; micBtn.disabled = busy;
+      if (busy) { setMode("thinking"); setStatus("Thinking…"); }
+      else {
+        if (mode === "thinking") setMode("idle");
+        setStatus("Type a message, or press the mic and speak.");
+      }
     }
 
-    document.getElementById("startBtn").addEventListener("click", async () => {
-      addMessage("System", "Starting...");
+    /* ---------- The plan panel ---------- */
+    const plan = document.getElementById("plan");
+    const agenda = document.getElementById("agenda");
+    document.getElementById("planBtn").addEventListener("click", () => plan.classList.toggle("open"));
+    document.getElementById("closePlan").addEventListener("click", () => plan.classList.remove("open"));
+
+    let lastSeen = {}, loadedOnce = false;
+    const isoLocal = (d) => d.toLocaleDateString("en-CA");          // local date, not UTC
+    const prettyDate = (iso) => new Date(iso + "T00:00").toLocaleDateString("en-IN",
+      { weekday: "short", day: "numeric", month: "short" });
+
+    async function refreshTasks() {
+      let tasks;
+      try { tasks = await (await fetch("/tasks")).json(); } catch { return; }
+      const now = new Date(), next = new Date(now);
+      next.setDate(now.getDate() + 1);
+      const today = isoLocal(now), tomorrow = isoLocal(next);
+
+      const groups = [
+        { key: "missed", label: "Missed", items: [] }, { key: "today", label: "Today", items: [] },
+        { key: "tomorrow", label: "Tomorrow", items: [] }, { key: "later", label: "Later", items: [] },
+        { key: "done", label: "Done", items: [] }
+      ];
+      const g = Object.fromEntries(groups.map((x) => [x.key, x]));
+      for (const task of [...tasks].sort((a, b) => a.date.localeCompare(b.date))) {
+        if (task.done) g.done.items.push(task);
+        else if (task.date < today) g.missed.items.push(task);
+        else if (task.date === today) g.today.items.push(task);
+        else if (task.date === tomorrow) g.tomorrow.items.push(task);
+        else g.later.items.push(task);
+      }
+
+      agenda.replaceChildren();
+      if (tasks.length === 0) {
+        const p = document.createElement("p");
+        p.className = "plan-empty";
+        p.textContent = "Nothing planned yet. Try saying “Add DSA revision for tomorrow.”";
+        agenda.appendChild(p);
+      }
+
+      const seen = {};
+      let changed = false;
+      for (const group of groups) {
+        if (group.items.length === 0) continue;
+        const section = document.createElement("section");
+        section.className = "group " + group.key;
+        const h = document.createElement("h3");
+        h.textContent = group.label;
+        section.appendChild(h);
+        for (const task of group.items) {
+          const sig = task.date + "|" + task.done;
+          seen[task.id] = sig;
+          const row = document.createElement("div");
+          row.className = "task";
+          if (task.done) row.classList.add("done");
+          if (group.key === "missed") row.classList.add("missed");
+          if (loadedOnce && lastSeen[task.id] !== sig) { row.classList.add("changed"); changed = true; }
+          const mark = document.createElement("span");
+          mark.className = "mark";
+          const text = document.createElement("div");
+          const title = document.createElement("span");
+          title.className = "title";
+          title.textContent = task.title;
+          const when = document.createElement("span");
+          when.className = "when";
+          when.textContent = prettyDate(task.date);
+          text.append(title, when);
+          row.append(mark, text);
+          section.appendChild(row);
+        }
+        agenda.appendChild(section);
+      }
+      lastSeen = seen;
+      loadedOnce = true;
+      if (changed) plan.classList.add("open");          // show the user what the agent changed
+    }
+
+    /* ---------- Conversation ---------- */
+    startBtn.addEventListener("click", async () => {
+      startBtn.disabled = true;
+      youLine.textContent = "";
       setBusy(true);
+      setStatus("Starting your session…");
       try {
         const reply = await post("/start");
-        addMessage("StudyBuddy", reply);
+        showCaption(reply);
         speak(reply);
-
-      } 
-        catch (err) {
-        addMessage("System", "Could not start: " + err.message);
+        startBtn.textContent = "Restart session";
+      } catch (err) {
+        showCaption(err.message, true);
       }
+      startBtn.disabled = false;
       setBusy(false);
+      refreshTasks();
       input.focus();
     });
 
     async function sendMessage() {
       const text = input.value.trim();
-      if (!text) return;                    // ignore empty messages
-      addMessage("You", text);
+      if (!text) return;
+      youLine.textContent = `“${text}”`;
       input.value = "";
       setBusy(true);
       try {
         const reply = await post("/chat", { message: text });
-        addMessage("StudyBuddy", reply);
+        showCaption(reply);
         speak(reply);
-      } 
-      catch (err) {
-        addMessage("System", "Error: " + err.message);
+      } catch (err) {
+        showCaption(err.message, true);
       }
       setBusy(false);
+      refreshTasks();
       input.focus();
     }
-
     sendBtn.addEventListener("click", sendMessage);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendMessage();
-    });
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
 
-        const micBtn = document.getElementById("micBtn");
+    /* ---------- Voice input ---------- */
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
+    let listening = false;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.lang = "en-IN";              // tuned for Indian English accents
-      recognition.interimResults = false;      // only give us the final result
-
+      recognition.lang = "en-IN";
+      recognition.interimResults = false;
       micBtn.addEventListener("click", () => {
-        speechSynthesis.cancel();              // stop speaking so it doesn't hear itself
-        micBtn.textContent = "Listening...";
+        if (listening) { recognition.stop(); return; }
+        speechSynthesis.cancel();
         recognition.start();
       });
-
+      recognition.addEventListener("start", () => {
+        listening = true;
+        micBtn.classList.add("listening");
+        micBtn.setAttribute("aria-label", "Stop listening");
+        setMode("listening");
+        setStatus("Listening… speak now.");
+      });
       recognition.addEventListener("result", (e) => {
-        input.value = e.results[0][0].transcript;   // put what you said in the box
-        input.focus();                              // so you can edit, then press Enter                            // reuse the same send logic
+        input.value = e.results[0][0].transcript;        // review, then press Enter
+        input.focus();
       });
-
       recognition.addEventListener("end", () => {
-        micBtn.textContent = "🎤 Speak";
+        listening = false;
+        micBtn.classList.remove("listening");
+        micBtn.setAttribute("aria-label", "Speak");
+        if (mode === "listening") setMode("idle");
+        setStatus(input.value ? "Check the text, then press Enter to send."
+                              : "Didn't catch that. Press the mic to try again.");
       });
-
       recognition.addEventListener("error", (e) => {
-        addMessage("System", "Mic error: " + e.error);
+        if (e.error === "not-allowed") showCaption("Microphone access is blocked. Allow it from the address bar, then reload.", true);
+        else if (e.error !== "no-speech") showCaption("Microphone error: " + e.error, true);
       });
     } else {
-      micBtn.style.display = "none";
-      addMessage("System", "Voice input isn't supported here. Please use Chrome or Edge.");
+      micBtn.hidden = true;
+      setStatus("Voice input needs Chrome or Edge. You can still type.");
     }
+
+    showCaption("Hi, I'm StudyBuddy. Start a session and tell me what you need to study.");
+    refreshTasks();
   </script>
 </body>
 </html>
