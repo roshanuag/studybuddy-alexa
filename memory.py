@@ -48,7 +48,6 @@ def add_plan(exam_title: str, exam_date: str, titles: list[str], dates: list[str
 
 def mark_done(task_id: int) -> dict:
     """Mark a task as completed by its id."""
-    print(f"[tool] mark_done called with task_id={task_id}")
     tasks = load_tasks()
     for t in tasks:
         if t["id"] == task_id:
@@ -70,7 +69,3 @@ def reschedule_task(task_id: int, new_date: str) -> dict:
 def get_missed(today: str) -> list:
     """Return unfinished tasks dated before today (YYYY-MM-DD)."""
     return [t for t in load_tasks() if t["date"] < today and not t["done"]]
-
-if __name__ == "__main__":
-    print(add_task("Revise DSA arrays", "2026-10-20"))
-    print(get_missed("2026-10-21"))
