@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudyBuddy</title>
+</head>
+<body>
+  <h1>StudyBuddy</h1>
+  <button id="startBtn">Start session</button>
+  <div id="log"></div>
+
+  <script>
+    const log = document.getElementById("log");
+
+    function addMessage(who, text) {
+      const p = document.createElement("p");
+      p.textContent = `${who}: ${text}`;   // textContent, not innerHTML (safer)
+      log.appendChild(p);
+    }
+
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      addMessage("System", "Starting...");
+      const res = await fetch("/start", { method: "POST" });
+      const data = await res.json();
+      addMessage("StudyBuddy", data.reply);
+    });
+  </script>
+</body>
+</html>

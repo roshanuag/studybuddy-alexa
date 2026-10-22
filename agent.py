@@ -1,3 +1,4 @@
+import httpx
 import time
 from google.genai import errors
 from datetime import date
@@ -7,7 +8,7 @@ from google.genai import types
 import memory
 
 load_dotenv()
-client = genai.Client()
+client = genai.Client(http_options=types.HttpOptions(timeout=30_000))
 MODEL = "gemini-3.5-flash-lite"
 
 def make_chat():
@@ -37,12 +38,18 @@ def send(chat, msg, tries=3):
         try:
             return chat.send_message(msg).text
         except errors.APIError as e:
-            if e.code in (429, 503):            # rate limited or overloaded
+            if e.code in (429, 500, 503, 504):  # rate limit, server error, overloaded, server timeout        # rate limited or overloaded
                 wait = 2 ** attempt * 2         # wait 2s, then 4s, then 8s
                 print(f"(Gemini error {e.code}, retrying in {wait}s...)")
                 time.sleep(wait)
             else:
-                raise                           # real bugs should still show up
+                raise 
+        except httpx.TimeoutException:
+            wait = 2 ** attempt * 2
+            print(f"(Gemini timed out, retrying in {wait}s...)")
+            time.sleep(wait)                          # real bugs should still show up
+
+
     return "Sorry, I can't reach my brain right now. Please try again in a minute."
 
 
