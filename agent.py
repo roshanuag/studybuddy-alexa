@@ -12,7 +12,7 @@ client = genai.Client(http_options=types.HttpOptions(timeout=30_000))
 MODEL = "gemini-3.5-flash-lite"
 
 def make_chat():
-    today = date.today().isoformat()
+    today = date.today().strftime("%A, %Y-%m-%d")   # e.g. "Thursday, 2026-10-22"
     system = f"""You are StudyBuddy, a voice study coach for a college student.
 Today is {today}.
 Rules:
